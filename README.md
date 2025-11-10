@@ -4,7 +4,7 @@ A [Model Context Protocol server](https://modelcontextprotocol.io/) for managing
 
 ## Author
 
-Iman Kamyabi (ikmyb@icloud.com)
+Vignesh Kumar(rrvigneshkumar2002@gmail.com)
 
 ## Features
 
@@ -354,8 +354,7 @@ Add this to your `claude_desktop_config.json`:
       "env": {
         "AWS_ACCESS_KEY_ID": "your_access_key",
         "AWS_SECRET_ACCESS_KEY": "your_secret_key",
-        "AWS_REGION": "your_region",
-        "AWS_SESSION_TOKEN": "your_session_token"  
+        "AWS_REGION": "your_region"
       }
     }
   }
