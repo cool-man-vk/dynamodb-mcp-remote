@@ -25,8 +25,8 @@ This script:
 
 ```bash
 AWS_REGION=us-east-1
-AWS_ACCESS_KEY_ID=AKIAQXUIXSFNJHYGCZFD
-AWS_SECRET_ACCESS_KEY=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
+AWS_ACCESS_KEY_ID=AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY=AWS_SECRET_ACCESS_KEY
 ```
 
 **Important**: The variable must be `AWS_ACCESS_KEY_ID`, not `AWS_ACCESS_ID`!
@@ -42,8 +42,8 @@ npm run smithery
 ### Windows (PowerShell)
 
 ```powershell
-$env:AWS_ACCESS_KEY_ID="AKIAQXUIXSFNJHYGCZFD"
-$env:AWS_SECRET_ACCESS_KEY="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"
+$env:AWS_ACCESS_KEY_ID=AWS_ACCESS_KEY_ID
+$env:AWS_SECRET_ACCESS_KEY=AWS_SECRET_ACCESS_KEY
 $env:AWS_REGION="us-east-1"
 npx smithery dev
 ```
@@ -51,8 +51,8 @@ npx smithery dev
 ### Linux/Mac (Bash)
 
 ```bash
-export AWS_ACCESS_KEY_ID="AKIAQXUIXSFNJHYGCZFD"
-export AWS_SECRET_ACCESS_KEY="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"
+export AWS_ACCESS_KEY_ID=AWS_ACCESS_KEY_ID
+export AWS_SECRET_ACCESS_KEY=AWS_SECRET_ACCESS_KEY
 export AWS_REGION="us-east-1"
 npx smithery dev
 ```
@@ -60,8 +60,8 @@ npx smithery dev
 ### Windows (CMD)
 
 ```cmd
-set AWS_ACCESS_KEY_ID=AKIAQXUIXSFNJHYGCZFD
-set AWS_SECRET_ACCESS_KEY=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
+set AWS_ACCESS_KEY_ID=AWS_ACCESS_KEY_ID
+set AWS_SECRET_ACCESS_KEY=AWS_SECRET_ACCESS_KEY
 set AWS_REGION=us-east-1
 npx smithery dev
 ```
