@@ -1,7 +1,7 @@
 {
   "name": "dynamodb-mcp-server",
-  "version": "0.1.0",
-  "description": "DynamoDB MCP server for managing DynamoDB resources",
+  "version": "0.2.0",
+  "description": "DynamoDB MCP server for managing DynamoDB resources via remote HTTP/SSE transport",
   "author": "Iman Kamyabi <ikmyb@icloud.com>",
   "license": "MIT",
   "type": "module",
@@ -14,7 +14,8 @@
   "scripts": {
     "build": "tsc && shx chmod +x dist/*.js",
     "prepare": "npm run build",
-    "watch": "tsc --watch"
+    "watch": "tsc --watch",
+    "start": "node dist/index.js"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.723.0",

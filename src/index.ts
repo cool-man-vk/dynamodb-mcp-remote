@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
   Tool,
 } from "@modelcontextprotocol/sdk/types.js";
+import http from "http";
 import {
   DynamoDBClient,
   CreateTableCommand,
@@ -585,7 +586,7 @@ async function describeTable(params: any) {
 const server = new Server(
   {
     name: "dynamodb-mcp-server",
-    version: "0.1.0",
+    version: "0.2.0",
   },
   {
     capabilities: {
@@ -659,11 +660,53 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
-// Server startup
+// Server startup - Remote mode only
 async function runServer() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error("DynamoDB Server running on stdio");
+  const port = parseInt(process.env.MCP_PORT || "3000", 10);
+  const host = process.env.MCP_HOST || "0.0.0.0";
+  
+  const httpServer = http.createServer(async (req, res) => {
+    if (req.url === "/sse" && req.method === "GET") {
+      console.error(`SSE connection established from ${req.socket.remoteAddress}`);
+      
+      const transport = new SSEServerTransport("/message", res);
+      await server.connect(transport);
+      
+      req.on("close", () => {
+        console.error("SSE connection closed");
+      });
+    } else if (req.url === "/message" && req.method === "POST") {
+      let body = "";
+      req.on("data", (chunk) => {
+        body += chunk.toString();
+      });
+      
+      req.on("end", async () => {
+        try {
+          JSON.parse(body);
+          // Message will be handled by the SSE transport
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ status: "ok" }));
+        } catch (error) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Invalid JSON" }));
+        }
+      });
+    } else if (req.url === "/health" && req.method === "GET") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "healthy", server: "dynamodb-mcp-server" }));
+    } else {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Not found" }));
+    }
+  });
+  
+  httpServer.listen(port, host, () => {
+    console.error(`DynamoDB MCP Server running on http://${host}:${port}`);
+    console.error(`SSE endpoint: http://${host}:${port}/sse`);
+    console.error(`Message endpoint: http://${host}:${port}/message`);
+    console.error(`Health check: http://${host}:${port}/health`);
+  });
 }
 
 runServer().catch((error) => {

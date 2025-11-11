@@ -6,6 +6,51 @@ A [Model Context Protocol server](https://modelcontextprotocol.io/) for managing
 
 Vignesh Kumar(rrvigneshkumar2002@gmail.com)
 
+📋 **Quick Reference**: See [QUICK_REFERENCE.md](QUICK_REFERENCE.md) for common commands and configurations.
+
+## Quick Start
+
+```bash
+# Install dependencies
+npm install
+
+# Build the project
+npm run build
+
+# Set AWS credentials
+export AWS_ACCESS_KEY_ID="your_access_key"
+export AWS_SECRET_ACCESS_KEY="your_secret_key"
+export AWS_REGION="us-east-1"
+
+# Start the server (binds to 0.0.0.0:3000 by default)
+npm start
+
+# Test the health endpoint
+curl http://localhost:3000/health
+```
+
+### Custom Configuration
+```bash
+# Run with custom host and port
+MCP_HOST=127.0.0.1 MCP_PORT=8080 npm start
+```
+
+## Remote Mode
+
+This MCP server runs exclusively in remote mode using Server-Sent Events (SSE) over HTTP for client connections.
+
+**Features:**
+- HTTP-based transport for remote connections
+- Allows multiple clients to connect simultaneously
+- Ideal for team environments and cloud deployments
+- Health check endpoint for monitoring
+
+**Environment Variables:**
+- `MCP_HOST`: Host to bind to (default: `0.0.0.0`)
+- `MCP_PORT`: Port to listen on (default: `3000`)
+
+📖 **For detailed configuration, security best practices, and deployment guides, see [REMOTE_MODE.md](REMOTE_MODE.md)**
+
 ## Features
 
 ### Table Management
@@ -52,8 +97,20 @@ npm run build
 ```
 
 4. Start the server:
+
+**Local Mode (stdio):**
 ```bash
 npm start
+```
+
+**Remote Mode (SSE over HTTP):**
+```bash
+npm run start:remote
+```
+
+Or with custom host and port:
+```bash
+MCP_TRANSPORT_MODE=sse MCP_HOST=0.0.0.0 MCP_PORT=8080 npm start
 ```
 
 ## Tools
@@ -341,38 +398,94 @@ Here are some example questions you can ask Claude when using this DynamoDB MCP 
 
 ### Usage with Claude Desktop
 
-Add this to your `claude_desktop_config.json`:
+First, start the server on your host:
 
-#### Docker (Recommended)
+```bash
+npm start
+```
+
+Then add this to your `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "dynamodb": {
-      "command": "docker",
-      "args": [ "run", "-i", "--rm", "-e", "AWS_ACCESS_KEY_ID", "-e", "AWS_SECRET_ACCESS_KEY", "-e", "AWS_REGION", "-e", "AWS_SESSION_TOKEN", "mcp/dynamodb-mcp-server" ],
-      "env": {
-        "AWS_ACCESS_KEY_ID": "your_access_key",
-        "AWS_SECRET_ACCESS_KEY": "your_secret_key",
-        "AWS_REGION": "your_region"
-      }
+      "url": "http://your-server-host:3000/sse"
     }
   }
 }
 ```
 
+For local testing, use `http://localhost:3000/sse`.
+
+**Security Note:** Ensure proper network security measures are in place:
+- Use HTTPS/TLS in production
+- Implement authentication and authorization
+- Restrict network access using firewalls
+- Consider using a reverse proxy (nginx, Apache) with SSL termination
+
 ## Building
 
-Docker:
+### Docker
+
+Build the image:
 ```sh
 docker build -t mcp/dynamodb-mcp-server -f Dockerfile .
+```
+
+Run the server:
+```sh
+docker run -d --rm \
+  -e AWS_ACCESS_KEY_ID="your_access_key" \
+  -e AWS_SECRET_ACCESS_KEY="your_secret_key" \
+  -e AWS_REGION="your_region" \
+  -p 3000:3000 \
+  --name dynamodb-mcp \
+  mcp/dynamodb-mcp-server
+```
+
+With custom port:
+```sh
+docker run -d --rm \
+  -e MCP_PORT=8080 \
+  -e AWS_ACCESS_KEY_ID="your_access_key" \
+  -e AWS_SECRET_ACCESS_KEY="your_secret_key" \
+  -e AWS_REGION="your_region" \
+  -p 8080:8080 \
+  --name dynamodb-mcp \
+  mcp/dynamodb-mcp-server
 ```
 
 ## Development
 
 To run in development mode with auto-reloading:
 ```bash
-npm run dev
+npm run watch
+```
+
+### Testing the Server
+
+**Linux/Mac:**
+```bash
+chmod +x test-remote.sh
+./test-remote.sh
+```
+
+**Windows (PowerShell):**
+```powershell
+.\test-remote.ps1
+```
+
+Or manually test the endpoints:
+```bash
+# Start server
+npm start
+
+# In another terminal, test the health endpoint
+curl http://localhost:3000/health
+
+# Test SSE connection
+curl -N -H "Accept: text/event-stream" http://localhost:3000/sse
 ```
 
 ## License
