@@ -37,34 +37,7 @@ AWS_SECRET_ACCESS_KEY=AWS_SECRET_ACCESS_KEY
 npm run smithery
 ```
 
-## Solution 2: Set Environment Variables Manually
 
-### Windows (PowerShell)
-
-```powershell
-$env:AWS_ACCESS_KEY_ID=AWS_ACCESS_KEY_ID
-$env:AWS_SECRET_ACCESS_KEY=AWS_SECRET_ACCESS_KEY
-$env:AWS_REGION="us-east-1"
-npx smithery dev
-```
-
-### Linux/Mac (Bash)
-
-```bash
-export AWS_ACCESS_KEY_ID=AWS_ACCESS_KEY_ID
-export AWS_SECRET_ACCESS_KEY=AWS_SECRET_ACCESS_KEY
-export AWS_REGION="us-east-1"
-npx smithery dev
-```
-
-### Windows (CMD)
-
-```cmd
-set AWS_ACCESS_KEY_ID=AWS_ACCESS_KEY_ID
-set AWS_SECRET_ACCESS_KEY=AWS_SECRET_ACCESS_KEY
-set AWS_REGION=us-east-1
-npx smithery dev
-```
 
 ## Solution 3: Configure in Smithery UI
 
