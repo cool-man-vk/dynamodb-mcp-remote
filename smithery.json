@@ -1,0 +1,33 @@
+{
+  "name": "dynamodb-mcp-server",
+  "version": "0.2.0",
+  "description": "DynamoDB MCP server for managing DynamoDB resources with remote transport support",
+  "author": "Vignesh Kumar(rrvigneshkumar2002@gmail.com)",
+  "license": "MIT",
+  "homepage": "https://github.com/cool-man-vk/dynamodb-mcp-server",
+  "config": {
+    "AWS_ACCESS_KEY_ID": {
+      "type": "string",
+      "description": "AWS Access Key ID",
+      "required": true
+    },
+    "AWS_SECRET_ACCESS_KEY": {
+      "type": "string",
+      "description": "AWS Secret Access Key",
+      "required": true,
+      "secret": true
+    },
+    "AWS_REGION": {
+      "type": "string",
+      "description": "AWS Region (e.g., us-east-1)",
+      "required": true,
+      "default": "us-east-1"
+    },
+    "AWS_SESSION_TOKEN": {
+      "type": "string",
+      "description": "AWS Session Token (optional, for temporary credentials)",
+      "required": false,
+      "secret": true
+    }
+  }
+}

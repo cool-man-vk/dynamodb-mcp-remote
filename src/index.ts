@@ -21,24 +21,31 @@ import {
 } from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 
-// AWS client initialization
-const credentials: { 
-  accessKeyId: string;
-  secretAccessKey: string;
-  sessionToken?: string;
-} = {
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-};
+// AWS client initialization - lazy initialization to support Smithery config
+let dynamoClient: DynamoDBClient;
 
-if (process.env.AWS_SESSION_TOKEN) {
-  credentials.sessionToken = process.env.AWS_SESSION_TOKEN;
+function getDynamoClient(): DynamoDBClient {
+  if (!dynamoClient) {
+    const credentials: { 
+      accessKeyId: string;
+      secretAccessKey: string;
+      sessionToken?: string;
+    } = {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+    };
+
+    if (process.env.AWS_SESSION_TOKEN) {
+      credentials.sessionToken = process.env.AWS_SESSION_TOKEN;
+    }
+
+    dynamoClient = new DynamoDBClient({
+      region: process.env.AWS_REGION,
+      credentials,
+    });
+  }
+  return dynamoClient;
 }
-
-const dynamoClient = new DynamoDBClient({
-  region: process.env.AWS_REGION,
-  credentials,
-});
 
 // Define tools
 const CREATE_TABLE_TOOL: Tool = {
@@ -250,7 +257,7 @@ async function createTable(params: any) {
       },
     });
     
-    const response = await dynamoClient.send(command);
+    const response = await getDynamoClient().send(command);
     return {
       success: true,
       message: `Table ${params.tableName} created successfully`,
@@ -272,7 +279,7 @@ async function listTables(params: any) {
       ExclusiveStartTableName: params.exclusiveStartTableName,
     });
     
-    const response = await dynamoClient.send(command);
+    const response = await getDynamoClient().send(command);
     return {
       success: true,
       message: "Tables listed successfully",
@@ -317,7 +324,7 @@ async function createGSI(params: any) {
       ],
     });
     
-    const response = await dynamoClient.send(command);
+    const response = await getDynamoClient().send(command);
     return {
       success: true,
       message: `GSI ${params.indexName} creation initiated on table ${params.tableName}`,
@@ -349,7 +356,7 @@ async function updateGSI(params: any) {
       ],
     });
     
-    const response = await dynamoClient.send(command);
+    const response = await getDynamoClient().send(command);
     return {
       success: true,
       message: `GSI ${params.indexName} capacity updated on table ${params.tableName}`,
@@ -395,7 +402,7 @@ async function createLSI(params: any) {
       },
     });
     
-    const response = await dynamoClient.send(command);
+    const response = await getDynamoClient().send(command);
     return {
       success: true,
       message: `LSI ${params.indexName} created on table ${params.tableName}`,
@@ -422,7 +429,7 @@ async function updateItem(params: any) {
       ReturnValues: params.returnValues || "NONE",
     });
     
-    const response = await dynamoClient.send(command);
+    const response = await getDynamoClient().send(command);
     return {
       success: true,
       message: `Item updated successfully in table ${params.tableName}`,
@@ -447,7 +454,7 @@ async function updateCapacity(params: any) {
       },
     });
     
-    const response = await dynamoClient.send(command);
+    const response = await getDynamoClient().send(command);
     return {
       success: true,
       message: `Capacity updated successfully for table ${params.tableName}`,
@@ -469,7 +476,7 @@ async function putItem(params: any) {
       Item: marshall(params.item),
     });
     
-    await dynamoClient.send(command);
+    await getDynamoClient().send(command);
     return {
       success: true,
       message: `Item added successfully to table ${params.tableName}`,
@@ -491,7 +498,7 @@ async function getItem(params: any) {
       Key: marshall(params.key),
     });
     
-    const response = await dynamoClient.send(command);
+    const response = await getDynamoClient().send(command);
     return {
       success: true,
       message: `Item retrieved successfully from table ${params.tableName}`,
@@ -517,7 +524,7 @@ async function queryTable(params: any) {
       Limit: params.limit,
     });
     
-    const response = await dynamoClient.send(command);
+    const response = await getDynamoClient().send(command);
     return {
       success: true,
       message: `Query executed successfully on table ${params.tableName}`,
@@ -544,7 +551,7 @@ async function scanTable(params: any) {
       Limit: params.limit,
     });
     
-    const response = await dynamoClient.send(command);
+    const response = await getDynamoClient().send(command);
     return {
       success: true,
       message: `Scan executed successfully on table ${params.tableName}`,
@@ -567,7 +574,7 @@ async function describeTable(params: any) {
       TableName: params.tableName,
     });
     
-    const response = await dynamoClient.send(command);
+    const response = await getDynamoClient().send(command);
     return {
       success: true,
       message: `Table ${params.tableName} described successfully`,
@@ -582,86 +589,113 @@ async function describeTable(params: any) {
   }
 }
 
-// Server setup
-const server = new Server(
-  {
-    name: "dynamodb-mcp-server",
-    version: "0.2.0",
-  },
-  {
-    capabilities: {
-      tools: {},
+// Server setup function
+function createServer() {
+  const server = new Server(
+    {
+      name: "dynamodb-mcp-server",
+      version: "0.2.0",
     },
-  },
-);
+    {
+      capabilities: {
+        tools: {},
+      },
+    },
+  );
 
-// Request handlers
-server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [CREATE_TABLE_TOOL, UPDATE_CAPACITY_TOOL, PUT_ITEM_TOOL, GET_ITEM_TOOL, QUERY_TABLE_TOOL, SCAN_TABLE_TOOL, DESCRIBE_TABLE_TOOL, LIST_TABLES_TOOL, CREATE_GSI_TOOL, UPDATE_GSI_TOOL, CREATE_LSI_TOOL, UPDATE_ITEM_TOOL],
-}));
+  // Request handlers
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: [CREATE_TABLE_TOOL, UPDATE_CAPACITY_TOOL, PUT_ITEM_TOOL, GET_ITEM_TOOL, QUERY_TABLE_TOOL, SCAN_TABLE_TOOL, DESCRIBE_TABLE_TOOL, LIST_TABLES_TOOL, CREATE_GSI_TOOL, UPDATE_GSI_TOOL, CREATE_LSI_TOOL, UPDATE_ITEM_TOOL],
+  }));
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
 
-  try {
-    let result;
-    switch (name) {
-      case "create_table":
-        result = await createTable(args);
-        break;
-      case "list_tables":
-        result = await listTables(args);
-        break;
-      case "create_gsi":
-        result = await createGSI(args);
-        break;
-      case "update_gsi":
-        result = await updateGSI(args);
-        break;
-      case "create_lsi":
-        result = await createLSI(args);
-        break;
-      case "update_item":
-        result = await updateItem(args);
-        break;
-      case "update_capacity":
-        result = await updateCapacity(args);
-        break;
-      case "put_item":
-        result = await putItem(args);
-        break;
-      case "get_item":
-        result = await getItem(args);
-        break;
-      case "query_table":
-        result = await queryTable(args);
-        break;
-      case "scan_table":
-        result = await scanTable(args);
-        break;
-      case "describe_table":
-        result = await describeTable(args);
-        break;
-      default:
-        return {
-          content: [{ type: "text", text: `Unknown tool: ${name}` }],
-          isError: true,
-        };
+    try {
+      let result;
+      switch (name) {
+        case "create_table":
+          result = await createTable(args);
+          break;
+        case "list_tables":
+          result = await listTables(args);
+          break;
+        case "create_gsi":
+          result = await createGSI(args);
+          break;
+        case "update_gsi":
+          result = await updateGSI(args);
+          break;
+        case "create_lsi":
+          result = await createLSI(args);
+          break;
+        case "update_item":
+          result = await updateItem(args);
+          break;
+        case "update_capacity":
+          result = await updateCapacity(args);
+          break;
+        case "put_item":
+          result = await putItem(args);
+          break;
+        case "get_item":
+          result = await getItem(args);
+          break;
+        case "query_table":
+          result = await queryTable(args);
+          break;
+        case "scan_table":
+          result = await scanTable(args);
+          break;
+        case "describe_table":
+          result = await describeTable(args);
+          break;
+        default:
+          return {
+            content: [{ type: "text", text: `Unknown tool: ${name}` }],
+            isError: true,
+          };
+      }
+
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error occurred: ${error}` }],
+        isError: true,
+      };
     }
+  });
 
-    return {
-      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-    };
-  } catch (error) {
-    return {
-      content: [{ type: "text", text: `Error occurred: ${error}` }],
-      isError: true,
-    };
+  return server;
+}
+
+// Smithery export format (stateless)
+export default function({ config }: { config?: Record<string, any> }) {
+  // Override AWS credentials from config if provided
+  if (config?.AWS_ACCESS_KEY_ID) {
+    process.env.AWS_ACCESS_KEY_ID = config.AWS_ACCESS_KEY_ID;
   }
-});
+  if (config?.AWS_SECRET_ACCESS_KEY) {
+    process.env.AWS_SECRET_ACCESS_KEY = config.AWS_SECRET_ACCESS_KEY;
+  }
+  if (config?.AWS_REGION) {
+    process.env.AWS_REGION = config.AWS_REGION;
+  }
+  if (config?.AWS_SESSION_TOKEN) {
+    process.env.AWS_SESSION_TOKEN = config.AWS_SESSION_TOKEN;
+  }
 
-// Server startup
+  // Reset the DynamoDB client to use new credentials
+  dynamoClient = null as any;
+
+  return createServer();
+}
+
+// Server startup (for standalone mode)
 async function runServer() {
+  const server = createServer();
   const transportMode = process.env.MCP_TRANSPORT_MODE || "stdio";
   
   if (transportMode === "sse" || transportMode === "http") {
@@ -759,7 +793,26 @@ async function runServer() {
   }
 }
 
-runServer().catch((error) => {
-  console.error("Fatal error running server:", error);
-  process.exit(1);
-});
+// Only run server if this file is executed directly (not imported by Smithery)
+// Smithery will import this module, so we check if we're being run directly
+if (typeof process !== 'undefined' && process.argv[1] && !process.argv[1].includes('.smithery')) {
+  // Check if this file is being executed directly
+  try {
+    const url = new URL(import.meta.url);
+    const scriptPath = process.argv[1];
+    if (url.pathname.endsWith(scriptPath) || scriptPath.endsWith('index.js')) {
+      runServer().catch((error) => {
+        console.error("Fatal error running server:", error);
+        process.exit(1);
+      });
+    }
+  } catch {
+    // If import.meta.url is not available (CJS), check argv
+    if (process.argv[1]?.endsWith('index.js') || process.argv[1]?.endsWith('index.cjs')) {
+      runServer().catch((error) => {
+        console.error("Fatal error running server:", error);
+        process.exit(1);
+      });
+    }
+  }
+}
