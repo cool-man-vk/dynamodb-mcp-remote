@@ -51,6 +51,8 @@ This MCP server runs exclusively in remote mode using Server-Sent Events (SSE) o
 
 📖 **For detailed configuration, security best practices, and deployment guides, see [REMOTE_MODE.md](REMOTE_MODE.md)**
 
+🚀 **For Smithery deployment instructions, see [SMITHERY_DEPLOYMENT.md](SMITHERY_DEPLOYMENT.md)**
+
 ## Features
 
 ### Table Management

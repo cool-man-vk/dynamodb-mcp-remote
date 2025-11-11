@@ -144,7 +144,9 @@ npm run watch
 ## Documentation
 
 - [README.md](README.md) - Main documentation
-- [REMOTE_MODE.md](REMOTE_MODE.md) - Remote mode guide
+- [UNDERSTANDING_REMOTE.md](UNDERSTANDING_REMOTE.md) - **What makes an MCP server "remote"**
+- [SMITHERY_DEPLOYMENT.md](SMITHERY_DEPLOYMENT.md) - **Deploy for Smithery**
+- [REMOTE_MODE.md](REMOTE_MODE.md) - Remote mode configuration
 - [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) - Migration from v0.1.0
 - [CHANGELOG.md](CHANGELOG.md) - Version history
 
