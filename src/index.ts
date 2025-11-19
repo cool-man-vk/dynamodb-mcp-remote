@@ -700,8 +700,8 @@ async function runServer() {
   
   if (transportMode === "sse" || transportMode === "http") {
     // SSE/HTTP transport for remote connections
-    const port = parseInt(process.env.MCP_PORT || "3000", 10);
-    const host = process.env.MCP_HOST || "0.0.0.0";
+    const port = parseInt(process.env.MCP_PORT || "8080", 10);
+    const host = "0.0.0.0";
     
     const httpServer = http.createServer(async (req, res) => {
       // Enable CORS for remote access
