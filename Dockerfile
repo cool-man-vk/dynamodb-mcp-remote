@@ -18,6 +18,7 @@ WORKDIR /app
 COPY package*.json ./
 COPY src/* ./
 COPY tsconfig.json ./
+COPY package-lock.json ./
 
 # Install production dependencies only
 RUN npm install --force
