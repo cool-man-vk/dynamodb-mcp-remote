@@ -697,68 +697,103 @@ export default function({ config }: { config?: Record<string, any> }) {
 async function runServer() {
   const server = createServer();
   const transportMode = "http";
-  
+
+  // Store active SSE transports by session ID
+  const sessions = new Map();
+
   if (transportMode === "http" || transportMode === "sse") {
-    // SSE/HTTP transport for remote connections
     const port = parseInt(process.env.MCP_PORT || "8080", 10);
     const host = "0.0.0.0";
-    
+
     const httpServer = http.createServer(async (req, res) => {
       // Enable CORS for remote access
       res.setHeader("Access-Control-Allow-Origin", "*");
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
       res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-      
+
       if (req.method === "OPTIONS") {
         res.writeHead(200);
         res.end();
         return;
       }
-      
-      if (req.url === "/sse" && req.method === "GET") {
+
+      // Parse URL to handle query parameters
+      const url = new URL(req.url as string, `http://${req.headers.host}`);
+      const pathname = url.pathname;
+      const sessionId = url.searchParams.get('sessionId');
+
+      if (pathname === "/sse" && req.method === "GET") {
         console.error(`SSE connection established from ${req.socket.remoteAddress}`);
-        
+
         res.setHeader("Content-Type", "text/event-stream");
         res.setHeader("Cache-Control", "no-cache");
         res.setHeader("Connection", "keep-alive");
-        
+
+        // Generate a session ID if not provided
+        const newSessionId = sessionId || crypto.randomUUID();
+
+        // Send session ID to client
+        res.write(`data: ${JSON.stringify({ type: 'session', sessionId: newSessionId })}\n\n`);
+
         const transport = new SSEServerTransport("/message", res);
+        sessions.set(newSessionId, transport);
+
         await server.connect(transport);
-        
+
         req.on("close", () => {
-          console.error("SSE connection closed");
+          console.error(`SSE connection closed for session: ${newSessionId}`);
+          sessions.delete(newSessionId);
         });
-      } else if (req.url === "/message" && req.method === "POST") {
+
+      } else if (pathname === "/message" && req.method === "POST") {
+        // Handle message endpoint with session ID
         let body = "";
         req.on("data", (chunk) => {
           body += chunk.toString();
         });
-        
+
         req.on("end", async () => {
           try {
-            JSON.parse(body);
-            // Message will be handled by the SSE transport
+            const message = JSON.parse(body);
+
+            // If sessionId is provided, route to specific transport
+            if (sessionId && sessions.has(sessionId)) {
+              const transport = sessions.get(sessionId);
+              // Handle the message for this specific session
+              console.error(`Message received for session: ${sessionId}`);
+
+              // You'll need to implement message handling based on your SSEServerTransport
+              // This depends on how your transport handles incoming messages
+              if (transport.handleMessage) {
+                await transport.handleMessage(message);
+              }
+            }
+
             res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ status: "ok" }));
+            res.end(JSON.stringify({ status: "ok", sessionId }));
           } catch (error) {
+            console.error("Error processing message:", error);
             res.writeHead(400, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ error: "Invalid JSON" }));
           }
         });
-      } else if (req.url === "/health" && req.method === "GET") {
+
+      } else if (pathname === "/health" && req.method === "GET") {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ 
           status: "healthy", 
           server: "dynamodb-mcp-server",
           version: "0.2.0",
           transport: "sse",
+          activeSessions: sessions.size,
           endpoints: {
             sse: `http://${host}:${port}/sse`,
             message: `http://${host}:${port}/message`,
             health: `http://${host}:${port}/health`
           }
         }));
-      } else if (req.url === "/" && req.method === "GET") {
+
+      } else if (pathname === "/" && req.method === "GET") {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ 
           name: "dynamodb-mcp-server",
@@ -770,12 +805,18 @@ async function runServer() {
             health: `http://${host}:${port}/health`
           }
         }));
+
       } else {
+        console.error(`404 Not Found: ${req.method} ${req.url}`);
         res.writeHead(404, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Not found" }));
+        res.end(JSON.stringify({ 
+          error: "Not found",
+          path: pathname,
+          method: req.method 
+        }));
       }
     });
-    
+
     httpServer.listen(port, host, () => {
       console.error(`DynamoDB MCP Server running on http://${host}:${port}`);
       console.error(`Transport: SSE (Server-Sent Events)`);
@@ -784,15 +825,7 @@ async function runServer() {
       console.error(`Health check: http://${host}:${port}/health`);
       console.error(`\nFor Smithery or remote clients, use: http://${host}:${port}/sse`);
     });
-  } 
-  
-  // else {
-  //   // Default stdio transport for local connections
-  //   const { StdioServerTransport } = await import("@modelcontextprotocol/sdk/server/stdio.js");
-  //   const transport = new StdioServerTransport();
-  //   await server.connect(transport);
-  //   console.error("DynamoDB MCP Server running on stdio (local mode)");
-  // }
+  }
 }
 
 // Only run server if this file is executed directly (not imported by Smithery)
