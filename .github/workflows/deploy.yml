@@ -1,0 +1,243 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: us-central1
+  REGISTRY: gcr.io
+
+jobs:
+  # Build and test job for PRs
+  build-and-test:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Run tests (if exists)
+        run: npm test --if-present
+
+      - name: Build Docker image (test only)
+        run: |
+          docker build -t dynamodb-mcp-server:test .
+          echo "✅ Docker build successful"
+
+  # Deploy job
+  deploy:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # Determine environment and service name
+      - name: Set environment variables
+        id: env-vars
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            ENVIRONMENT="${{ github.event.inputs.environment }}"
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]] || [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
+            ENVIRONMENT="production"
+          else
+            ENVIRONMENT="staging"
+          fi
+
+          if [[ "$ENVIRONMENT" == "production" ]]; then
+            SERVICE_NAME="dynamodb-mcp-server-prod"
+          else
+            SERVICE_NAME="dynamodb-mcp-server-staging"
+          fi
+
+          echo "ENVIRONMENT=$ENVIRONMENT" >> $GITHUB_ENV
+          echo "SERVICE_NAME=$SERVICE_NAME" >> $GITHUB_ENV
+          echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+          echo "service_name=$SERVICE_NAME" >> $GITHUB_OUTPUT
+
+      # Authenticate to Google Cloud using Service Account Key
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Configure Docker to use gcloud as credential helper
+        run: |
+          gcloud auth configure-docker
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            --build-arg NODE_ENV=production \
+            -t ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            -t ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest \
+            .
+
+      - name: Push Docker image to GCR
+        run: |
+          docker push ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          docker push ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest
+
+      - name: Check if secrets exist
+        id: check-secrets
+        run: |
+          # Check if secrets exist in Google Secret Manager
+          if gcloud secrets describe aws-access-key --project=${{ env.PROJECT_ID }} >/dev/null 2>&1; then
+            echo "aws_access_key_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "aws_access_key_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+          if gcloud secrets describe aws-secret-key --project=${{ env.PROJECT_ID }} >/dev/null 2>&1; then
+            echo "aws_secret_key_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "aws_secret_key_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create secrets if they don't exist
+        if: steps.check-secrets.outputs.aws_access_key_exists == 'false' || steps.check-secrets.outputs.aws_secret_key_exists == 'false'
+        run: |
+          # Create secrets only if they don't exist
+          if [[ "${{ steps.check-secrets.outputs.aws_access_key_exists }}" == "false" ]]; then
+            echo "Creating aws-access-key secret..."
+            echo -n "placeholder-key" | gcloud secrets create aws-access-key --data-file=- --project=${{ env.PROJECT_ID }}
+          fi
+
+          if [[ "${{ steps.check-secrets.outputs.aws_secret_key_exists }}" == "false" ]]; then
+            echo "Creating aws-secret-key secret..."
+            echo -n "placeholder-secret" | gcloud secrets create aws-secret-key --data-file=- --project=${{ env.PROJECT_ID }}
+          fi
+
+      - name: Deploy to Cloud Run (with secrets)
+        if: steps.check-secrets.outputs.aws_access_key_exists == 'true' && steps.check-secrets.outputs.aws_secret_key_exists == 'true'
+        id: deploy-with-secrets
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --port 8080 \
+            --allow-unauthenticated \
+            --min-instances 0 \
+            --max-instances 100 \
+            --memory 512Mi \
+            --cpu 1 \
+            --timeout 300 \
+            --concurrency 80 \
+            --set-env-vars NODE_ENV=production \
+            --set-env-vars AWS_REGION=${{ secrets.AWS_REGION || 'us-east-1' }} \
+            --set-env-vars SERVICE_NAME=${{ env.SERVICE_NAME }} \
+            --set-env-vars ENVIRONMENT=${{ env.ENVIRONMENT }} \
+            --set-secrets AWS_ACCESS_KEY_ID=aws-access-key:latest \
+            --set-secrets AWS_SECRET_ACCESS_KEY=aws-secret-key:latest \
+            --project ${{ env.PROJECT_ID }}
+
+      - name: Deploy to Cloud Run (without secrets)
+        if: steps.check-secrets.outputs.aws_access_key_exists == 'false' || steps.check-secrets.outputs.aws_secret_key_exists == 'false'
+        id: deploy-without-secrets
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --port 8080 \
+            --allow-unauthenticated \
+            --min-instances 0 \
+            --max-instances 100 \
+            --memory 512Mi \
+            --cpu 1 \
+            --timeout 300 \
+            --concurrency 80 \
+            --set-env-vars NODE_ENV=production \
+            --set-env-vars AWS_REGION=${{ secrets.AWS_REGION || 'us-east-1' }} \
+            --set-env-vars SERVICE_NAME=${{ env.SERVICE_NAME }} \
+            --set-env-vars ENVIRONMENT=${{ env.ENVIRONMENT }} \
+            --set-env-vars AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID || 'not-set' }} \
+            --set-env-vars AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY || 'not-set' }} \
+            --project ${{ env.PROJECT_ID }}
+
+      - name: Get service URL
+        id: get-url
+        run: |
+          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --format 'value(status.url)' \
+            --project ${{ env.PROJECT_ID }})
+          echo "url=$SERVICE_URL" >> $GITHUB_OUTPUT
+          echo "Service URL: $SERVICE_URL"
+
+      - name: Show deployment info
+        run: |
+          echo "🚀 Service deployed successfully!"
+          echo "📍 Service URL: ${{ steps.get-url.outputs.url }}"
+          echo "🏷️ Environment: ${{ env.ENVIRONMENT }}"
+          echo "🔖 Version: ${{ github.sha }}"
+
+      - name: Run smoke test
+        run: |
+          SERVICE_URL="${{ steps.get-url.outputs.url }}"
+          echo "Testing service at: $SERVICE_URL"
+
+          # Try health endpoint
+          if curl -f -m 10 "$SERVICE_URL/health" 2>/dev/null; then
+            echo "✅ Health check passed"
+          else
+            echo "⚠️ Health check endpoint not available or failed"
+          fi
+
+          # Try root endpoint
+          if curl -f -m 10 "$SERVICE_URL" 2>/dev/null; then
+            echo "✅ Root endpoint accessible"
+          else
+            echo "⚠️ Root endpoint not accessible"
+          fi
