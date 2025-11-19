@@ -696,9 +696,9 @@ export default function({ config }: { config?: Record<string, any> }) {
 // Server startup (for standalone mode)
 async function runServer() {
   const server = createServer();
-  const transportMode = process.env.MCP_TRANSPORT_MODE || "stdio";
+  const transportMode = "http";
   
-  if (transportMode === "sse" || transportMode === "http") {
+  if (transportMode === "http" || transportMode === "sse") {
     // SSE/HTTP transport for remote connections
     const port = parseInt(process.env.MCP_PORT || "8080", 10);
     const host = "0.0.0.0";
@@ -784,13 +784,15 @@ async function runServer() {
       console.error(`Health check: http://${host}:${port}/health`);
       console.error(`\nFor Smithery or remote clients, use: http://${host}:${port}/sse`);
     });
-  } else {
-    // Default stdio transport for local connections
-    const { StdioServerTransport } = await import("@modelcontextprotocol/sdk/server/stdio.js");
-    const transport = new StdioServerTransport();
-    await server.connect(transport);
-    console.error("DynamoDB MCP Server running on stdio (local mode)");
-  }
+  } 
+  
+  // else {
+  //   // Default stdio transport for local connections
+  //   const { StdioServerTransport } = await import("@modelcontextprotocol/sdk/server/stdio.js");
+  //   const transport = new StdioServerTransport();
+  //   await server.connect(transport);
+  //   console.error("DynamoDB MCP Server running on stdio (local mode)");
+  // }
 }
 
 // Only run server if this file is executed directly (not imported by Smithery)
