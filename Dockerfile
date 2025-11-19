@@ -16,10 +16,12 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
+COPY src/* ./
+COPY tsconfig.json ./
 
 # Install production dependencies only
-RUN npm ci --only=production --ignore-scripts && \
-    npm cache clean --force
+RUN npm install --force
+RUN npm run build
 
 # Copy built application from builder stage
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
