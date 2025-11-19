@@ -10,7 +10,7 @@ WORKDIR /app
 COPY . .
 
 # Install dependencies and build
-RUN npm install && \
+RUN npm install --force && \
     npm run build && \
     npm prune --production
 
