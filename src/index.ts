@@ -729,16 +729,17 @@ async function runServer() {
         res.setHeader("Cache-Control", "no-cache");
         res.setHeader("Connection", "keep-alive");
 
-        // Generate a session ID if not provided
-        const newSessionId = sessionId || crypto.randomUUID();
-
-        // Send session ID to client
-        res.write(`data: ${JSON.stringify({ type: 'session', sessionId: newSessionId })}\n\n`);
-
+        // Create the SSE transport - don't send custom session messages
         const transport = new SSEServerTransport("/message", res);
-        sessions.set(newSessionId, transport);
 
+        // Store the transport with a session ID if needed
+        const newSessionId = sessionId || crypto.randomUUID();
+        sessions.set(newSessionId, { transport, response: res });
+
+        // Connect the transport to the server
         await server.connect(transport);
+
+        // The server will now handle all JSONRPC communication through the transport
 
         req.on("close", () => {
           console.error(`SSE connection closed for session: ${newSessionId}`);
@@ -746,7 +747,6 @@ async function runServer() {
         });
 
       } else if (pathname === "/message" && req.method === "POST") {
-        // Handle message endpoint with session ID
         let body = "";
         req.on("data", (chunk) => {
           body += chunk.toString();
@@ -755,22 +755,13 @@ async function runServer() {
         req.on("end", async () => {
           try {
             const message = JSON.parse(body);
+            console.error(`Message received: ${JSON.stringify(message)}`);
 
-            // If sessionId is provided, route to specific transport
-            if (sessionId && sessions.has(sessionId)) {
-              const transport = sessions.get(sessionId);
-              // Handle the message for this specific session
-              console.error(`Message received for session: ${sessionId}`);
-
-              // You'll need to implement message handling based on your SSEServerTransport
-              // This depends on how your transport handles incoming messages
-              if (transport.handleMessage) {
-                await transport.handleMessage(message);
-              }
-            }
-
+            // The SSEServerTransport should handle the message routing
+            // Just acknowledge receipt
             res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ status: "ok", sessionId }));
+            res.end(JSON.stringify({ status: "ok" }));
+
           } catch (error) {
             console.error("Error processing message:", error);
             res.writeHead(400, { "Content-Type": "application/json" });
@@ -823,7 +814,6 @@ async function runServer() {
       console.error(`SSE endpoint: http://${host}:${port}/sse`);
       console.error(`Message endpoint: http://${host}:${port}/message`);
       console.error(`Health check: http://${host}:${port}/health`);
-      console.error(`\nFor Smithery or remote clients, use: http://${host}:${port}/sse`);
     });
   }
 }
