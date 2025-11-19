@@ -1,4 +1,30 @@
-# Production stage
+# ========== BUILD STAGE ==========
+FROM node:20-alpine AS builder
+
+# Add build arguments
+ARG NODE_ENV=production
+
+# Install build dependencies (needed for some npm packages)
+RUN apk add --no-cache python3 make g++
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (including devDependencies for building)
+RUN npm install --force
+
+# Copy source code and configuration files
+COPY tsconfig.json ./
+COPY src ./src
+COPY smithery.json* ./
+
+# Build the TypeScript application
+RUN npm run build
+
+# ========== PRODUCTION STAGE ==========
 FROM node:20-alpine
 
 # Install runtime dependencies
@@ -16,20 +42,19 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
-COPY src/* ./
-COPY tsconfig.json ./
-COPY package-lock.json ./
 
 # Install production dependencies only
-RUN npm install --force
-RUN npm run build
+RUN npm install --production --force
 
 # Copy built application from builder stage
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
-COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
+
+# Copy source files (in case they're needed at runtime)
+COPY --from=builder --chown=nodejs:nodejs /app/src ./src
 
 # Copy configuration files
-COPY --chown=nodejs:nodejs smithery.json* ./
+COPY --from=builder --chown=nodejs:nodejs /app/smithery.json* ./
+COPY --from=builder --chown=nodejs:nodejs /app/tsconfig.json* ./
 
 # Create temp directory for the app
 RUN mkdir -p /app/tmp && chown -R nodejs:nodejs /app/tmp
