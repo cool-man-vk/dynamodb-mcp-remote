@@ -1,0 +1,35 @@
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required:
+      - awsRegion
+      - awsAccessKeyId
+      - awsSecretAccessKey
+    properties:
+      awsRegion:
+        type: string
+        default: ap-south-1
+        description: AWS region for the MCP.
+      awsAccessKeyId:
+        type: string
+        default: ""
+        description: AWS access key ID.
+      awsSecretAccessKey:
+        type: string
+        default: ""
+        description: AWS secret access key.
+  commandFunction: |-
+    (config) => ({
+      command: 'node',
+      args: ['dist/index.js'],
+      env: {
+        AWS_REGION: config.awsRegion,
+        AWS_ACCESS_KEY_ID: config.awsAccessKeyId,
+        AWS_SECRET_ACCESS_KEY: config.awsSecretAccessKey
+      }
+    })
+  exampleConfig:
+    awsRegion: ap-south-1
+    awsAccessKeyId: YOUR_ACCESS_KEY_ID
+    awsSecretAccessKey: YOUR_SECRET_ACCESS_KEY
