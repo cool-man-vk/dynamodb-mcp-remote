@@ -698,7 +698,7 @@ async function runServer() {
   const server = createServer();
   const transportMode = "http";
   
-  if (transportMode === "sse" || transportMode === "http") {
+  if (transportMode === "http" || transportMode === "sse") {
     // SSE/HTTP transport for remote connections
     const port = parseInt(process.env.MCP_PORT || "8080", 10);
     const host = "0.0.0.0";
