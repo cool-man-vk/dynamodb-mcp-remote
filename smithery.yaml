@@ -9,7 +9,7 @@ startCommand:
     properties:
       awsRegion:
         type: string
-        default: ap-south-1
+        default: us-east-1
         description: AWS region for the MCP.
       awsAccessKeyId:
         type: string
@@ -30,6 +30,6 @@ startCommand:
       }
     })
   exampleConfig:
-    awsRegion: ap-south-1
+    awsRegion: us-east-1
     awsAccessKeyId: YOUR_ACCESS_KEY_ID
     awsSecretAccessKey: YOUR_SECRET_ACCESS_KEY
