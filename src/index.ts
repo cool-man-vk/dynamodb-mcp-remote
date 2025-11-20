@@ -696,7 +696,7 @@ export default function({ config }: { config?: Record<string, any> }) {
 // Server startup (for standalone mode)
 async function runServer() {
   const server = createServer();
-  const transportMode = "sse";
+  const transportMode = "http";
   
   if (transportMode === "sse" || transportMode === "http") {
     // SSE/HTTP transport for remote connections
