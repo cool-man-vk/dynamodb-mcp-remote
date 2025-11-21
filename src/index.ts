@@ -739,7 +739,7 @@ async function runServer() {
         });
       }
       
-      else if (req.url === "/message" && req.method === "POST") {
+      else if (req.url?.startsWith("/message") && req.method === "POST") {
         let body = "";
         req.on("data", (chunk) => {
           body += chunk.toString();
