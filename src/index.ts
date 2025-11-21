@@ -713,6 +713,8 @@ async function runServer() {
     const host = "0.0.0.0";
     
     const httpServer = http.createServer(async (req, res) => {
+      console.error(`Request: ${req.method} ${req.url}`);
+      
       // Enable CORS for remote access
       res.setHeader("Access-Control-Allow-Origin", "*");
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -724,13 +726,16 @@ async function runServer() {
         return;
       }
       
-      if ((req.url === "/sse" || req.url === "/mcp" || req.url?.startsWith("/sse")) && req.method === "GET") {
-        console.error(`SSE connection established from ${req.socket.remoteAddress}`);
+      // Handle SSE connections - must be first to catch all SSE requests
+      if (req.method === "GET" && (req.url === "/sse" || req.url === "/mcp" || req.url?.startsWith("/sse"))) {
+        console.error(`SSE connection established from ${req.socket.remoteAddress} for URL: ${req.url}`);
         
-        res.setHeader("Content-Type", "text/event-stream");
-        res.setHeader("Cache-Control", "no-cache");
-        res.setHeader("Connection", "keep-alive");
-        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.writeHead(200, {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "Connection": "keep-alive",
+          "Access-Control-Allow-Origin": "*"
+        });
         
         const transport = new SSEServerTransport("/message", res);
         await server.connect(transport);
