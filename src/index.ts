@@ -719,13 +719,6 @@ async function runServer() {
       res.setHeader("Access-Control-Allow-Origin", "*");
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
       res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-
-      res.writeHead(200, {
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
-          "Connection": "keep-alive",
-          "Access-Control-Allow-Origin": "*"
-        });
       
       if (req.method === "OPTIONS") {
         res.writeHead(200);
@@ -733,16 +726,16 @@ async function runServer() {
         return;
       }
       
-      // Handle SSE connections - must be first to catch all SSE requests
-      if (req.method === "GET" && (req.url === "/sse" || req.url === "/mcp" || req.url?.startsWith("/sse"))) {
+      // Handle SSE connections - Google ADK connects to root URL
+      if (req.method === "GET" && (req.url === "/" || req.url === "/sse" || req.url === "/mcp" || req.url?.startsWith("/sse"))) {
         console.error(`SSE connection established from ${req.socket.remoteAddress} for URL: ${req.url}`);
         
-        // res.writeHead(200, {
-        //   "Content-Type": "text/event-stream",
-        //   "Cache-Control": "no-cache",
-        //   "Connection": "keep-alive",
-        //   "Access-Control-Allow-Origin": "*"
-        // });
+        res.writeHead(200, {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "Connection": "keep-alive",
+          "Access-Control-Allow-Origin": "*"
+        });
         
         const transport = new SSEServerTransport("/message", res);
         await server.connect(transport);
@@ -788,14 +781,14 @@ async function runServer() {
           }
         }));
         return;
-      } else if (req.url === "/" && req.method === "GET") {
+      } else if (req.url === "/info" && req.method === "GET") {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ 
           name: "dynamodb-mcp-server",
           version: "0.2.0",
           description: "DynamoDB MCP server with remote transport support",
           endpoints: {
-            sse: `http://${host}:${port}/sse`,
+            sse: `http://${host}:${port}/`,
             mcp: `http://${host}:${port}/mcp`,
             message: `http://${host}:${port}/message`,
             health: `http://${host}:${port}/health`
