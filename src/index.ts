@@ -705,102 +705,109 @@ export default function({ config }: { config?: Record<string, any> }) {
 // Server startup (for standalone mode)
 async function runServer() {
   const server = createServer();
-  // const transportMode = "http";
+  const transportMode = "http";
   
-  // if (transportMode === "http" || transportMode === "sse") {
-  //   // SSE/HTTP transport for remote connections
-  //   const port = parseInt(process.env.MCP_PORT || "8080", 10);
-  //   const host = "0.0.0.0";
+  if (transportMode === "http" || transportMode === "sse") {
+    // SSE/HTTP transport for remote connections
+    const port = parseInt(process.env.MCP_PORT || "8080", 10);
+    const host = "0.0.0.0";
     
-  //   const httpServer = http.createServer(async (req, res) => {
-  //     // Enable CORS for remote access
-  //     res.setHeader("Access-Control-Allow-Origin", "*");
-  //     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  //     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const httpServer = http.createServer(async (req, res) => {
+      // Enable CORS for remote access
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
       
-  //     if (req.method === "OPTIONS") {
-  //       res.writeHead(200);
-  //       res.end();
-  //       return;
-  //     }
+      if (req.method === "OPTIONS") {
+        res.writeHead(200);
+        res.end();
+        return;
+      }
       
-  //     if (req.url === "/sse" && req.method === "GET") {
-  //       console.error(`SSE connection established from ${req.socket.remoteAddress}`);
+      if ((req.url === "/sse" || req.url === "/mcp") && req.method === "GET") {
+        console.error(`SSE connection established from ${req.socket.remoteAddress}`);
         
-  //       res.setHeader("Content-Type", "text/event-stream");
-  //       res.setHeader("Cache-Control", "no-cache");
-  //       res.setHeader("Connection", "keep-alive");
+        res.setHeader("Content-Type", "text/event-stream");
+        res.setHeader("Cache-Control", "no-cache");
+        res.setHeader("Connection", "keep-alive");
         
-  //       const transport = new SSEServerTransport("/message", res);
-  //       await server.connect(transport);
+        const transport = new SSEServerTransport("/message", res);
+        await server.connect(transport);
         
-  //       req.on("close", () => {
-  //         console.error("SSE connection closed");
-  //       });
-  //     } else if (req.url === "/message" && req.method === "POST") {
-  //       let body = "";
-  //       req.on("data", (chunk) => {
-  //         body += chunk.toString();
-  //       });
+        req.on("close", () => {
+          console.error("SSE connection closed");
+        });
+      }
+      
+      else if (req.url === "/message" && req.method === "POST") {
+        let body = "";
+        req.on("data", (chunk) => {
+          body += chunk.toString();
+        });
         
-  //       req.on("end", async () => {
-  //         try {
-  //           JSON.parse(body);
-  //           // Message will be handled by the SSE transport
-  //           res.writeHead(200, { "Content-Type": "application/json" });
-  //           res.end(JSON.stringify({ status: "ok" }));
-  //         } catch (error) {
-  //           res.writeHead(400, { "Content-Type": "application/json" });
-  //           res.end(JSON.stringify({ error: "Invalid JSON" }));
-  //         }
-  //       });
-  //     } else if (req.url === "/health" && req.method === "GET") {
-  //       res.writeHead(200, { "Content-Type": "application/json" });
-  //       res.end(JSON.stringify({ 
-  //         status: "healthy", 
-  //         server: "dynamodb-mcp-server",
-  //         version: "0.2.0",
-  //         transport: "sse",
-  //         endpoints: {
-  //           sse: `http://${host}:${port}/sse`,
-  //           message: `http://${host}:${port}/message`,
-  //           health: `http://${host}:${port}/health`
-  //         }
-  //       }));
-  //     } else if (req.url === "/" && req.method === "GET") {
-  //       res.writeHead(200, { "Content-Type": "application/json" });
-  //       res.end(JSON.stringify({ 
-  //         name: "dynamodb-mcp-server",
-  //         version: "0.2.0",
-  //         description: "DynamoDB MCP server with remote transport support",
-  //         endpoints: {
-  //           sse: `http://${host}:${port}/sse`,
-  //           message: `http://${host}:${port}/message`,
-  //           health: `http://${host}:${port}/health`
-  //         }
-  //       }));
-  //     } else {
-  //       res.writeHead(404, { "Content-Type": "application/json" });
-  //       res.end(JSON.stringify({ error: "Not found" }));
-  //     }
-  //   });
+        req.on("end", async () => {
+          try {
+            JSON.parse(body);
+            // Message will be handled by the SSE transport
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ status: "ok" }));
+          } catch (error) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Invalid JSON" }));
+          }
+        });
+      } 
+      
+      else if (req.url === "/health" && req.method === "GET") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ 
+          status: "healthy", 
+          server: "dynamodb-mcp-server",
+          version: "0.2.0",
+          transport: "sse",
+          endpoints: {
+            sse: `http://${host}:${port}/sse`,
+            mcp: `http://${host}:${port}/mcp`,
+            message: `http://${host}:${port}/message`,
+            health: `http://${host}:${port}/health`
+          }
+        }));
+      } else if (req.url === "/" && req.method === "GET") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ 
+          name: "dynamodb-mcp-server",
+          version: "0.2.0",
+          description: "DynamoDB MCP server with remote transport support",
+          endpoints: {
+            sse: `http://${host}:${port}/sse`,
+            mcp: `http://${host}:${port}/mcp`,
+            message: `http://${host}:${port}/message`,
+            health: `http://${host}:${port}/health`
+          }
+        }));
+      } else {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Not found" }));
+      }
+    });
     
-  //   httpServer.listen(port, host, () => {
-  //     console.error(`DynamoDB MCP Server running on http://${host}:${port}`);
-  //     console.error(`Transport: SSE (Server-Sent Events)`);
-  //     console.error(`SSE endpoint: http://${host}:${port}/sse`);
-  //     console.error(`Message endpoint: http://${host}:${port}/message`);
-  //     console.error(`Health check: http://${host}:${port}/health`);
-  //     console.error(`\nFor Smithery or remote clients, use: http://${host}:${port}/sse`);
-  //   });
-  // } 
+    httpServer.listen(port, host, () => {
+      console.error(`DynamoDB MCP Server running on http://${host}:${port}`);
+      console.error(`Transport: SSE (Server-Sent Events)`);
+      console.error(`SSE endpoint: http://${host}:${port}/sse`);
+      console.error(`MCP endpoint: http://${host}:${port}/mcp`);     
+      console.error(`Message endpoint: http://${host}:${port}/message`);
+      console.error(`Health check: http://${host}:${port}/health`);
+      console.error(`\nFor Smithery or remote clients, use: http://${host}:${port}/sse`);
+    });
+  } 
   
   // else {
   //   // Default stdio transport for local connections
-    const { StdioServerTransport } = await import("@modelcontextprotocol/sdk/server/stdio.js");
-    const transport = new StdioServerTransport();
-    await server.connect(transport);
-    console.error("DynamoDB MCP Server running on stdio");
+    // const { StdioServerTransport } = await import("@modelcontextprotocol/sdk/server/stdio.js");
+    // const transport = new StdioServerTransport();
+    // await server.connect(transport);
+    // console.error("DynamoDB MCP Server running on stdio");
   // }
 }
 
