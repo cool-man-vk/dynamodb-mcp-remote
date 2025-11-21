@@ -724,12 +724,13 @@ async function runServer() {
         return;
       }
       
-      if ((req.url === "/sse" || req.url === "/mcp") && req.method === "GET") {
+      if ((req.url === "/sse" || req.url === "/mcp" || req.url?.startsWith("/sse")) && req.method === "GET") {
         console.error(`SSE connection established from ${req.socket.remoteAddress}`);
         
         res.setHeader("Content-Type", "text/event-stream");
         res.setHeader("Cache-Control", "no-cache");
         res.setHeader("Connection", "keep-alive");
+        res.setHeader("Access-Control-Allow-Origin", "*");
         
         const transport = new SSEServerTransport("/message", res);
         await server.connect(transport);
@@ -737,6 +738,7 @@ async function runServer() {
         req.on("close", () => {
           console.error("SSE connection closed");
         });
+        return;
       }
       
       else if (req.url?.startsWith("/message") && req.method === "POST") {
@@ -756,6 +758,7 @@ async function runServer() {
             res.end(JSON.stringify({ error: "Invalid JSON" }));
           }
         });
+        return;
       } 
       
       else if (req.url === "/health" && req.method === "GET") {
@@ -772,6 +775,7 @@ async function runServer() {
             health: `http://${host}:${port}/health`
           }
         }));
+        return;
       } else if (req.url === "/" && req.method === "GET") {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ 
@@ -785,6 +789,7 @@ async function runServer() {
             health: `http://${host}:${port}/health`
           }
         }));
+        return;
       } else {
         res.writeHead(404, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "Not found" }));
