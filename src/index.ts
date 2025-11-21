@@ -719,6 +719,13 @@ async function runServer() {
       res.setHeader("Access-Control-Allow-Origin", "*");
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
       res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+      res.writeHead(200, {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "Connection": "keep-alive",
+          "Access-Control-Allow-Origin": "*"
+        });
       
       if (req.method === "OPTIONS") {
         res.writeHead(200);
@@ -730,12 +737,12 @@ async function runServer() {
       if (req.method === "GET" && (req.url === "/sse" || req.url === "/mcp" || req.url?.startsWith("/sse"))) {
         console.error(`SSE connection established from ${req.socket.remoteAddress} for URL: ${req.url}`);
         
-        res.writeHead(200, {
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
-          "Connection": "keep-alive",
-          "Access-Control-Allow-Origin": "*"
-        });
+        // res.writeHead(200, {
+        //   "Content-Type": "text/event-stream",
+        //   "Cache-Control": "no-cache",
+        //   "Connection": "keep-alive",
+        //   "Access-Control-Allow-Origin": "*"
+        // });
         
         const transport = new SSEServerTransport("/message", res);
         await server.connect(transport);
