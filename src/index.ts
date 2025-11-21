@@ -709,95 +709,82 @@ async function runServer() {
   
   if (transportMode === "http" || transportMode === "sse") {
     // SSE/HTTP transport for remote connections
-    const port = parseInt(process.env.MCP_PORT || "8080", 10);
+    const port = parseInt(process.env.PORT || process.env.MCP_PORT || "8080", 10);
     const host = "0.0.0.0";
     
     const httpServer = http.createServer(async (req, res) => {
       console.error(`Request: ${req.method} ${req.url}`);
       
-      // Enable CORS for remote access
-      res.setHeader("Access-Control-Allow-Origin", "*");
-      res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-      
-      if (req.method === "OPTIONS") {
-        res.writeHead(200);
-        res.end();
-        return;
-      }
-      
-      // Handle SSE connections - Google ADK connects to root URL
-      if (req.method === "GET" && (req.url === "/" || req.url === "/sse" || req.url === "/mcp" || req.url?.startsWith("/sse"))) {
-        console.error(`SSE connection established from ${req.socket.remoteAddress} for URL: ${req.url}`);
+      try {
+        // Enable CORS for remote access
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        res.setHeader("Access-Control-Allow-Headers", "Content-Type");
         
-        res.writeHead(200, {
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
-          "Connection": "keep-alive",
-          "Access-Control-Allow-Origin": "*"
-        });
+        if (req.method === "OPTIONS") {
+          res.writeHead(200);
+          res.end();
+          return;
+        }
         
-        const transport = new SSEServerTransport("/message", res);
-        await server.connect(transport);
+        // Handle POST messages
+        if (req.url?.startsWith("/message") && req.method === "POST") {
+          let body = "";
+          req.on("data", (chunk) => {
+            body += chunk.toString();
+          });
+          
+          req.on("end", async () => {
+            try {
+              JSON.parse(body);
+              res.writeHead(200, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ status: "ok" }));
+            } catch (error) {
+              res.writeHead(400, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ error: "Invalid JSON" }));
+            }
+          });
+          return;
+        }
         
-        req.on("close", () => {
-          console.error("SSE connection closed");
-        });
-        return;
-      }
-      
-      else if (req.url?.startsWith("/message") && req.method === "POST") {
-        let body = "";
-        req.on("data", (chunk) => {
-          body += chunk.toString();
-        });
+        // Handle health check
+        if (req.url === "/health" && req.method === "GET") {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ 
+            status: "healthy", 
+            server: "dynamodb-mcp-server",
+            version: "0.2.0"
+          }));
+          return;
+        }
         
-        req.on("end", async () => {
-          try {
-            JSON.parse(body);
-            // Message will be handled by the SSE transport
-            res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ status: "ok" }));
-          } catch (error) {
-            res.writeHead(400, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ error: "Invalid JSON" }));
-          }
-        });
-        return;
-      } 
-      
-      else if (req.url === "/health" && req.method === "GET") {
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ 
-          status: "healthy", 
-          server: "dynamodb-mcp-server",
-          version: "0.2.0",
-          transport: "sse",
-          endpoints: {
-            sse: `http://${host}:${port}/sse`,
-            mcp: `http://${host}:${port}/mcp`,
-            message: `http://${host}:${port}/message`,
-            health: `http://${host}:${port}/health`
-          }
-        }));
-        return;
-      } else if (req.url === "/info" && req.method === "GET") {
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ 
-          name: "dynamodb-mcp-server",
-          version: "0.2.0",
-          description: "DynamoDB MCP server with remote transport support",
-          endpoints: {
-            sse: `http://${host}:${port}/`,
-            mcp: `http://${host}:${port}/mcp`,
-            message: `http://${host}:${port}/message`,
-            health: `http://${host}:${port}/health`
-          }
-        }));
-        return;
-      } else {
+        // All other GET requests are SSE connections
+        if (req.method === "GET") {
+          console.error(`SSE connection established from ${req.socket.remoteAddress} for URL: ${req.url}`);
+          
+          res.writeHead(200, {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Access-Control-Allow-Origin": "*"
+          });
+          
+          const transport = new SSEServerTransport("/message", res);
+          await server.connect(transport);
+          
+          req.on("close", () => {
+            console.error("SSE connection closed");
+          });
+          return;
+        }
+        
+        // Fallback
         res.writeHead(404, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "Not found" }));
+      } catch (error) {
+        console.error("Server error:", error);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Internal server error" }));
       }
     });
     
